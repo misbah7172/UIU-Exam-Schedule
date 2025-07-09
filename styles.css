@@ -1,0 +1,399 @@
+/* Additional custom styles with orange gradient theme */
+.sort-indicator {
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+/* Orange gradient utilities */
+.bg-gradient-orange {
+    background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 50%, #F7931E 100%);
+}
+
+.bg-gradient-orange-light {
+    background: linear-gradient(135deg, #FFF4E6 0%, #FFE4CC 100%);
+}
+
+.text-gradient-orange {
+    background: linear-gradient(135deg, #FF6B35 0%, #FF8E53 50%, #F7931E 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Student ID section styles */
+#studentRoomSection {
+    border-left: 4px solid #FF6B35;
+}
+
+#studentRoomSection .room-assignment {
+    transition: all 0.2s ease;
+}
+
+#studentRoomSection .room-assignment:hover {
+    background-color: #fff7ed;
+    transform: translateX(2px);
+}
+
+/* Disabled input styling */
+input:disabled {
+    background-color: #f9fafb;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+input:disabled::placeholder {
+    color: #9ca3af;
+}
+
+/* Selected course cards */
+.selected-course-card {
+    transition: all 0.2s ease;
+    border-left: 4px solid #FF6B35;
+}
+
+.selected-course-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 53, 0.2);
+}
+
+/* Search suggestions dropdown */
+#searchSuggestions {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+#searchSuggestions .suggestion-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+#searchSuggestions .suggestion-item:hover {
+    background-color: #fff7ed;
+    transform: translateX(2px);
+    border-left: 3px solid #FF6B35;
+}
+
+#searchSuggestions .suggestion-item:last-child {
+    border-bottom: none;
+}
+
+/* Toggle button styles */
+#toggleRoutineBtn {
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+#toggleRoutineBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 107, 53, 0.3);
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+    .container {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+    
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .selected-course-card {
+        padding: 12px;
+    }
+    
+    #searchSuggestions .suggestion-item {
+        padding: 10px 12px;
+    }
+    
+    table th, table td {
+        padding: 8px 12px;
+        font-size: 0.875rem;
+    }
+}
+
+#searchSuggestions .suggestion-item:last-child {
+    border-bottom: none;
+}
+
+/* Selected course tags */
+.course-tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: #dbeafe;
+    color: #1e40af;
+    padding: 4px 8px;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.course-tag .remove-btn {
+    margin-left: 8px;
+    background-color: #1e40af;
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.course-tag .remove-btn:hover {
+    background-color: #1e3a8a;
+}
+
+/* Print modal styles */
+#printModal {
+    z-index: 1000;
+}
+
+.print-content {
+    font-family: 'Times New Roman', serif;
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    .no-print {
+        display: none !important;
+    }
+    
+    .print-content {
+        width: 100%;
+        max-width: none;
+    }
+    
+    .print-content h1 {
+        font-size: 24pt;
+        margin-bottom: 20pt;
+    }
+    
+    .print-content h2 {
+        font-size: 18pt;
+        margin-bottom: 15pt;
+    }
+    
+    .print-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20pt;
+    }
+    
+    .print-content th,
+    .print-content td {
+        border: 1px solid #000;
+        padding: 8pt;
+        text-align: left;
+        font-size: 11pt;
+    }
+    
+    .print-content th {
+        background-color: #f0f0f0;
+        font-weight: bold;
+    }
+    
+    .print-content tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+    
+    /* Page break settings */
+    .print-content {
+        page-break-inside: avoid;
+    }
+    
+    .print-content table {
+        page-break-inside: auto;
+    }
+    
+    .print-content tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+}
+
+/* Smooth transitions for interactive elements */
+button, select, input {
+    transition: all 0.2s ease;
+}
+
+/* Enhanced table styling */
+#examTable tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* Loading animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Responsive table scrolling */
+@media (max-width: 768px) {
+    .overflow-x-auto {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #examTable {
+        min-width: 600px;
+    }
+    
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+/* Enhanced button styles */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* File input styling */
+input[type="file"] {
+    cursor: pointer;
+}
+
+input[type="file"]:hover {
+    border-color: #3B82F6;
+}
+
+/* Custom scrollbar for webkit browsers */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Success and error message animations */
+#errorMessage, #successMessage {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Table header hover effects */
+th[data-sort]:hover {
+    background-color: #fff7ed;
+    transition: background-color 0.2s ease;
+}
+
+/* Responsive text sizing */
+@media (max-width: 640px) {
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .container {
+        padding: 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white !important;
+    }
+    
+    .no-print {
+        display: none !important;
+    }
+    
+    #examTable {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    
+    #examTable th,
+    #examTable td {
+        border: 1px solid #000;
+        padding: 8px;
+        text-align: left;
+    }
+    
+    .bg-gradient-orange {
+        background: #FF6B35 !important;
+        color: white !important;
+    }
+    
+    .text-gradient-orange {
+        color: #FF6B35 !important;
+    }
+}
+
+/* Loading animation improvements */
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Button hover effects */
+button:hover {
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* Focus states for accessibility */
+input:focus, select:focus, button:focus {
+    outline: 2px solid #FF6B35;
+    outline-offset: 2px;
+}
+
+/* Card animations */
+.bg-white {
+    transition: all 0.3s ease;
+}
+
+.bg-white:hover {
+    box-shadow: 0 8px 25px rgba(255, 107, 53, 0.15);
+}
