@@ -177,11 +177,24 @@ function processExcelData(jsonData) {
     
     // Map column indices
     const courseCol = findColumnIndex(headers, ['course', 'subject', 'module', 'exam']);
+    const courseTitleCol = findColumnIndex(headers, ['course title', 'title', 'course name', 'subject title', 'exam title']);
     const sectionCol = findColumnIndex(headers, ['section', 'sec', 'group', 'class']);
     const dateCol = findColumnIndex(headers, ['date', 'day', 'datum']);
     const timeCol = findColumnIndex(headers, ['zeit', 'time', 'hour']);
     const roomCol = findColumnIndex(headers, ['room', 'raum', 'location', 'venue']);
     const studentIdCol = findColumnIndex(headers, ['student', 'id', 'studentid', 'student_id', 'matrikel']);
+    
+    // Debug logging to help identify column detection
+    console.log('Headers found:', headers);
+    console.log('Column mappings:', {
+        course: courseCol,
+        courseTitle: courseTitleCol,
+        section: sectionCol,
+        date: dateCol,
+        time: timeCol,
+        room: roomCol,
+        studentId: studentIdCol
+    });
     
     // Process data rows
     for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
@@ -189,6 +202,7 @@ function processExcelData(jsonData) {
         if (!row || !Array.isArray(row)) continue;
         
         const course = getCellValue(row, courseCol);
+        const courseTitle = getCellValue(row, courseTitleCol);
         let section = getCellValue(row, sectionCol);
         const date = getCellValue(row, dateCol);
         const time = getCellValue(row, timeCol);
@@ -218,8 +232,25 @@ function processExcelData(jsonData) {
         // Skip empty rows
         if (!course && !date && !time && !room) continue;
         
+        // Use course title from column if available, otherwise extract from course field
+        let finalCourseCode = '';
+        let finalCourseTitle = '';
+        
+        if (courseTitle && courseTitle !== 'N/A' && courseTitle.trim()) {
+            // We have a separate course title column
+            finalCourseTitle = courseTitle.trim();
+            finalCourseCode = course || extractCourseCode(courseTitle);
+        } else {
+            // Extract course code and title from the course field
+            const courseInfo = extractCourseCodeAndTitle(course || '');
+            finalCourseCode = courseInfo.code;
+            finalCourseTitle = courseInfo.title;
+        }
+        
         examData.push({
             course: course || 'N/A',
+            courseCode: finalCourseCode,
+            courseTitle: finalCourseTitle,
             section: section || null,
             date: formatDate(date) || 'N/A',
             time: time || 'N/A',
@@ -456,7 +487,7 @@ function showInterface() {
     
     // Enable course search normally
     courseSearch.disabled = false;
-    courseSearch.placeholder = "Search courses by name or code...";
+    courseSearch.placeholder = "Search by course name, code, or title...";
     
     updateSortIndicators();
     
@@ -480,10 +511,16 @@ function handleCourseSearch() {
         return;
     }
     
-    // Simple search - just look for the term in course names
+    // Enhanced search - look for the term in course names, codes, and titles
     const matchingCourses = examData.filter(exam => {
-        const courseName = exam.course.toLowerCase();
-        return courseName.includes(searchTerm);
+        const courseName = (exam.course || '').toLowerCase();
+        const courseCode = (exam.courseCode || '').toLowerCase();
+        const courseTitle = (exam.courseTitle || '').toLowerCase();
+        
+        // Search in course name, code, and title
+        return courseName.includes(searchTerm) || 
+               courseCode.includes(searchTerm) || 
+               courseTitle.includes(searchTerm);
     });
     
     // Get unique courses
@@ -503,7 +540,9 @@ function handleCourseSearch() {
         
         // If there's an exact match, select it automatically
         const exactMatch = uniqueCourses.find(course => 
-            course.course.toLowerCase() === searchTerm
+            course.course.toLowerCase() === searchTerm ||
+            (course.courseCode || '').toLowerCase() === searchTerm ||
+            (course.courseTitle || '').toLowerCase() === searchTerm
         );
         
         if (exactMatch) {
@@ -511,7 +550,8 @@ function handleCourseSearch() {
             populateCourseSections(exactMatch.course);
         }
     } else {
-        searchSuggestions.classList.add('hidden');
+        // Show "no results" message instead of hiding suggestions
+        showNoResultsMessage(searchTerm);
         addCourseBtn.disabled = true;
         courseSection.disabled = true;
         courseSection.innerHTML = '<option value="">No matching course found</option>';
@@ -525,19 +565,84 @@ function extractCourseCode(courseName) {
     return codeMatch ? codeMatch[0] : '';
 }
 
+function extractCourseCodeAndTitle(courseString) {
+    if (!courseString || courseString === 'N/A') {
+        return { code: '', title: courseString || '' };
+    }
+    
+    // Try to extract course code (pattern like CSE251, MATH101, etc.)
+    const codeMatch = courseString.match(/\b([A-Z]{2,4}\d{2,4})\b/i);
+    const code = codeMatch ? codeMatch[1].toUpperCase() : '';
+    
+    let title = courseString.trim();
+    
+    if (code) {
+        // Remove the code from the title to get clean title
+        title = courseString.replace(new RegExp(`\\b${code}\\b`, 'gi'), '').trim();
+        // Clean up extra spaces and separators
+        title = title.replace(/^\s*[-–—:,]\s*|\s*[-–—:,]\s*$/g, '').trim();
+        title = title.replace(/\s+/g, ' '); // Replace multiple spaces with single space
+    }
+    
+    // If no clear separation was found, check for common patterns
+    if (!code || !title) {
+        // Pattern 1: "Course Name - CODE123" or "Course Name CODE123"
+        const pattern1 = courseString.match(/^(.+?)\s*[-–—]?\s*([A-Z]{2,4}\d{2,4})$/i);
+        if (pattern1) {
+            return {
+                code: pattern1[2].toUpperCase(),
+                title: pattern1[1].trim()
+            };
+        }
+        
+        // Pattern 2: "CODE123 - Course Name" or "CODE123 Course Name"
+        const pattern2 = courseString.match(/^([A-Z]{2,4}\d{2,4})\s*[-–—]?\s*(.+)$/i);
+        if (pattern2) {
+            return {
+                code: pattern2[1].toUpperCase(),
+                title: pattern2[2].trim()
+            };
+        }
+    }
+    
+    return {
+        code: code || '',
+        title: title || courseString
+    };
+}
+
 function showSuggestions(courses) {
     searchSuggestions.innerHTML = '';
+    
+    const searchTerm = courseSearch.value.toLowerCase().trim();
     
     courses.slice(0, 5).forEach(exam => {
         const suggestionItem = document.createElement('div');
         suggestionItem.className = 'suggestion-item';
         
-        const courseCode = extractCourseCode(exam.course);
-        const displayText = courseCode ? `${exam.course} (${courseCode})` : exam.course;
+        // Create a better display format with highlighting
+        let displayText = '';
+        const courseCode = exam.courseCode || extractCourseCode(exam.course);
+        const courseTitle = exam.courseTitle || exam.course;
+        
+        if (courseCode && courseTitle && courseCode !== courseTitle) {
+            // Highlight matching parts
+            const highlightedCode = highlightMatch(courseCode, searchTerm);
+            const highlightedTitle = highlightMatch(courseTitle, searchTerm);
+            displayText = `<span class="font-semibold text-primary">${highlightedCode}</span> - ${highlightedTitle}`;
+        } else if (courseCode) {
+            // Show just the highlighted code
+            const highlightedCode = highlightMatch(courseCode, searchTerm);
+            displayText = `<span class="font-semibold text-primary">${highlightedCode}</span>`;
+        } else {
+            // Show the highlighted original course name
+            const highlightedCourse = highlightMatch(exam.course, searchTerm);
+            displayText = `<span class="font-medium">${highlightedCourse}</span>`;
+        }
         
         suggestionItem.innerHTML = `
             <div class="flex justify-between items-center">
-                <span class="font-medium">${displayText}</span>
+                <div>${displayText}</div>
                 <span class="text-xs text-gray-500">${exam.date} - ${exam.room}</span>
             </div>
         `;
@@ -554,10 +659,20 @@ function showSuggestions(courses) {
     searchSuggestions.classList.remove('hidden');
 }
 
+function highlightMatch(text, searchTerm) {
+    if (!searchTerm || searchTerm.length < 2) return text;
+    
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark class="bg-yellow-200 text-yellow-900 rounded px-1">$1</mark>');
+}
+
 function findColumnIndex(headers, searchTerms) {
     for (let i = 0; i < headers.length; i++) {
-        const header = headers[i];
-        if (searchTerms.some(term => header.includes(term))) {
+        const header = headers[i].toLowerCase().trim();
+        if (searchTerms.some(term => {
+            // Check for exact match or if header contains the search term
+            return header === term.toLowerCase() || header.includes(term.toLowerCase());
+        })) {
             return i;
         }
     }
@@ -631,8 +746,19 @@ function updateTable() {
         const row = document.createElement('tr');
         row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
         
+        // Get course code and title for better display
+        const courseCode = exam.courseCode || extractCourseCode(exam.course);
+        const courseTitle = exam.courseTitle || exam.course;
+        
+        let courseDisplayText = '';
+        if (courseCode && courseTitle && courseCode !== courseTitle) {
+            courseDisplayText = `<span class="font-semibold text-primary">${courseCode}</span><br><span class="text-sm text-gray-600">${courseTitle}</span>`;
+        } else {
+            courseDisplayText = exam.course;
+        }
+        
         row.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${exam.course}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${courseDisplayText}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${exam.date}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${exam.time}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${exam.room}</td>
@@ -677,11 +803,59 @@ function showTable() {
 // Note: showSuggestions function is defined earlier in the file
 
 function handleSearchKeydown(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        if (!addCourseBtn.disabled) {
-            addSelectedCourse();
+    const suggestions = searchSuggestions.querySelectorAll('.suggestion-item');
+    const isVisible = !searchSuggestions.classList.contains('hidden');
+    
+    if (!isVisible || suggestions.length === 0) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (!addCourseBtn.disabled) {
+                addSelectedCourse();
+            }
         }
+        return;
+    }
+    
+    let currentIndex = Array.from(suggestions).findIndex(item => 
+        item.classList.contains('suggestion-active')
+    );
+    
+    switch (event.key) {
+        case 'ArrowDown':
+            event.preventDefault();
+            if (currentIndex < suggestions.length - 1) {
+                if (currentIndex >= 0) suggestions[currentIndex].classList.remove('suggestion-active');
+                currentIndex++;
+                suggestions[currentIndex].classList.add('suggestion-active');
+            } else if (currentIndex === -1 && suggestions.length > 0) {
+                suggestions[0].classList.add('suggestion-active');
+            }
+            break;
+            
+        case 'ArrowUp':
+            event.preventDefault();
+            if (currentIndex > 0) {
+                suggestions[currentIndex].classList.remove('suggestion-active');
+                currentIndex--;
+                suggestions[currentIndex].classList.add('suggestion-active');
+            } else if (currentIndex === 0) {
+                suggestions[currentIndex].classList.remove('suggestion-active');
+            }
+            break;
+            
+        case 'Enter':
+            event.preventDefault();
+            if (currentIndex >= 0 && currentIndex < suggestions.length) {
+                suggestions[currentIndex].click();
+            } else if (!addCourseBtn.disabled) {
+                addSelectedCourse();
+            }
+            break;
+            
+        case 'Escape':
+            event.preventDefault();
+            searchSuggestions.classList.add('hidden');
+            break;
     }
 }
 
@@ -747,9 +921,21 @@ function updateSelectedCoursesDisplay() {
     selectedCourses.forEach((courseWithSection, index) => {
         const courseTag = document.createElement('div');
         courseTag.className = 'bg-orange-50 border border-orange-200 rounded-lg p-3 flex justify-between items-start selected-course-card';
+        
+        // Get course code and title for better display
+        const courseCode = courseWithSection.courseCode || extractCourseCode(courseWithSection.course);
+        const courseTitle = courseWithSection.courseTitle || courseWithSection.course;
+        
+        let courseDisplayText = '';
+        if (courseCode && courseTitle && courseCode !== courseTitle) {
+            courseDisplayText = `<span class="font-bold text-primary">${courseCode}</span> - ${courseTitle}`;
+        } else {
+            courseDisplayText = courseWithSection.course;
+        }
+        
         courseTag.innerHTML = `
             <div class="flex-1">
-                <h5 class="font-medium text-orange-900">${courseWithSection.course}</h5>
+                <h5 class="font-medium text-orange-900">${courseDisplayText}</h5>
                 <p class="text-sm text-orange-700">${courseWithSection.date} at ${courseWithSection.time}</p>
                 <p class="text-sm text-orange-600">Section: ${courseWithSection.section}</p>
                 <p class="text-sm font-semibold text-orange-800">Room: ${courseWithSection.assignedRoom}</p>
@@ -825,13 +1011,26 @@ function downloadTimetablePDF() {
         });
         
         // Prepare table data
-        const tableData = sortedCourses.map(course => [
-            course.course,
-            course.section,
-            course.date,
-            course.time,
-            course.assignedRoom
-        ]);
+        const tableData = sortedCourses.map(course => {
+            // Get course code and title for better display in PDF
+            const courseCode = course.courseCode || extractCourseCode(course.course);
+            const courseTitle = course.courseTitle || course.course;
+            
+            let courseDisplayText = '';
+            if (courseCode && courseTitle && courseCode !== courseTitle) {
+                courseDisplayText = `${courseCode} - ${courseTitle}`;
+            } else {
+                courseDisplayText = course.course;
+            }
+            
+            return [
+                courseDisplayText,
+                course.section,
+                course.date,
+                course.time,
+                course.assignedRoom
+            ];
+        });
         
         // Create table using autoTable plugin
         doc.autoTable({
@@ -1040,4 +1239,26 @@ function populateCourseSections(courseName) {
     
     // Trigger button state check
     handleCourseSectionInput();
+}
+
+// Function to show a helpful message when no search results are found
+function showNoResultsMessage(searchTerm) {
+    searchSuggestions.innerHTML = '';
+    
+    const noResultsItem = document.createElement('div');
+    noResultsItem.className = 'p-3 text-center text-gray-500 border-b';
+    noResultsItem.innerHTML = `
+        <div class="text-sm">
+            <p class="font-medium">No courses found for "${searchTerm}"</p>
+            <p class="text-xs mt-1">Try searching with:</p>
+            <ul class="text-xs mt-1 text-left">
+                <li>• Course code (e.g., CSE251, MATH101)</li>
+                <li>• Course title (e.g., Computer Science, Mathematics)</li>
+                <li>• Partial names (e.g., Micro, Calc)</li>
+            </ul>
+        </div>
+    `;
+    
+    searchSuggestions.appendChild(noResultsItem);
+    searchSuggestions.classList.remove('hidden');
 }

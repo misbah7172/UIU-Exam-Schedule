@@ -78,6 +78,32 @@ input:disabled::placeholder {
     border-bottom: none;
 }
 
+/* Search suggestions styling */
+.suggestion-item {
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.suggestion-active {
+    background-color: #fff7ed;
+    border-left: 3px solid #FF6B35;
+}
+
+.suggestion-item mark {
+    background-color: #fef3cd;
+    color: #92400e;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
 /* Toggle button styles */
 #toggleRoutineBtn {
     font-weight: 500;

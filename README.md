@@ -6,9 +6,14 @@ A frontend-only web application that allows users to upload Excel files containi
 
 - **Excel File Upload**: Upload and parse .xlsx and .xls files
 - **Automatic Data Detection**: Intelligently detects columns for Course Name, Date, Time, and Room
+- **Enhanced Course Search**: Search by course name, course code, or course title for easy discovery
+- **Student ID Management**: Enter your student ID to get personalized exam schedules
+- **Section-Based Scheduling**: Add courses with specific sections for accurate room assignments
+- **Smart Room Assignment**: Automatically assigns exam rooms based on student ID ranges and course sections
+- **PDF Export**: Download your personalized exam timetable as a PDF document
 - **Responsive Design**: Works great on desktop and mobile devices
 - **Sorting Functionality**: Sort by any column in ascending or descending order
-- **Clean UI**: Modern interface built with Tailwind CSS
+- **Clean UI**: Modern interface built with Tailwind CSS and orange gradient theme
 - **Error Handling**: Proper error messages for invalid files
 - **No Backend Required**: Pure frontend application using SheetJS
 
@@ -17,9 +22,15 @@ A frontend-only web application that allows users to upload Excel files containi
 1. **Open the Application**: Open `index.html` in any modern web browser
 2. **Upload Excel File**: Click "Choose File" and select your Excel file (.xlsx or .xls)
 3. **Parse Data**: Click "Parse Excel File" to process the uploaded file
-4. **View Results**: The exam schedule will be displayed in a responsive table
-5. **Sort Data**: Click on column headers or use the sort controls to organize the data
-6. **Clear Data**: Use the "Clear Data" button to reset and upload a new file
+4. **Enter Student ID**: Input your student ID and confirm it
+5. **Search and Add Courses**: 
+   - Use the enhanced search to find courses by name, code, or title
+   - Select the appropriate section for each course
+   - Add courses to your personal schedule
+6. **Download PDF**: Generate and download your personalized exam timetable
+7. **View Full Schedule**: Optionally view the complete exam schedule for all courses
+8. **Sort Data**: Click on column headers or use the sort controls to organize the data
+9. **Clear Data**: Use the "Clear Data" button to reset and upload a new file
 
 ## Excel File Format
 
