@@ -28,6 +28,12 @@ const studentIdSection = document.getElementById('studentIdSection');
 const studentId = document.getElementById('studentId');
 const confirmStudentIdBtn = document.getElementById('confirmStudentIdBtn');
 
+// PDF Upload elements
+const pdfUploadSection = document.getElementById('pdfUploadSection');
+const classRoutinePdf = document.getElementById('classRoutinePdf');
+const extractCoursesBtn = document.getElementById('extractCoursesBtn');
+const extractionProgress = document.getElementById('extractionProgress');
+
 // Search elements
 const searchSection = document.getElementById('searchSection');
 const courseSearch = document.getElementById('courseSearch');
@@ -53,6 +59,10 @@ toggleRoutineBtn.addEventListener('click', toggleFullRoutine);
 // Student ID event listeners
 studentId.addEventListener('input', handleStudentIdInput);
 confirmStudentIdBtn.addEventListener('click', confirmStudentId);
+
+// PDF Upload event listeners
+classRoutinePdf.addEventListener('change', handlePdfSelect);
+extractCoursesBtn.addEventListener('click', extractCoursesFromPdf);
 
 // Search event listeners
 courseSearch.addEventListener('input', handleCourseSearch);
@@ -297,8 +307,497 @@ function confirmStudentId() {
     confirmStudentIdBtn.disabled = true;
     confirmStudentIdBtn.textContent = 'ID Confirmed ✓';
     searchSection.classList.remove('hidden');
-    showSuccess(`Student ID confirmed: ${studentIdValue}. You can now add courses with sections.`);
+    pdfUploadSection.classList.remove('hidden'); // Show PDF upload option
+    showSuccess(`Student ID confirmed: ${studentIdValue}. You can now add courses manually or upload your class routine PDF for quick setup.`);
     hideMessages();
+}
+
+// PDF Upload handlers
+function handlePdfSelect() {
+    const file = classRoutinePdf.files[0];
+    extractCoursesBtn.disabled = !file;
+}
+
+function extractStudentIdFromPdf(text, structuredText = []) {
+    console.log('=== Extracting Student ID ===');
+    
+    // Multiple patterns for student ID
+    const idPatterns = [
+        /Student\s*ID[\s:]*(\d{9,11})/gi,           // Student ID: 011221373
+        /ID[\s:]*(\d{9,11})/gi,                      // ID: 011221373
+        /\b(\d{9,11})\b/g,                           // Any 9-11 digit number
+        /Student[\s:]*(\d{9,11})/gi,                 // Student 011221373
+        /Matric[a-z]*[\s:]*(\d{9,11})/gi,           // Matriculation: 011221373
+    ];
+    
+    // Try structured text first (better accuracy)
+    if (structuredText && structuredText.length > 0) {
+        for (let i = 0; i < structuredText.length; i++) {
+            const item = structuredText[i];
+            
+            // Look for "Student ID" or "ID" label
+            if (/student\s*id|^\s*id\s*$/i.test(item)) {
+                // Check next few items for the ID number
+                for (let j = i + 1; j < Math.min(i + 5, structuredText.length); j++) {
+                    const nextItem = structuredText[j];
+                    const idMatch = nextItem.match(/^(\d{9,11})$/);
+                    if (idMatch) {
+                        console.log(`✓ Found Student ID in structured text: ${idMatch[1]}`);
+                        return idMatch[1];
+                    }
+                }
+            }
+            
+            // Also check if current item contains both label and ID
+            for (const pattern of idPatterns) {
+                pattern.lastIndex = 0;
+                const match = pattern.exec(item);
+                if (match && match[1]) {
+                    console.log(`✓ Found Student ID in item: ${match[1]}`);
+                    return match[1];
+                }
+            }
+        }
+    }
+    
+    // Fallback: Try text-based extraction
+    for (const pattern of idPatterns) {
+        pattern.lastIndex = 0;
+        const match = pattern.exec(text);
+        if (match && match[1]) {
+            // Validate that it looks like a UIU student ID (starts with 0)
+            if (match[1].startsWith('0') && match[1].length >= 9) {
+                console.log(`✓ Found Student ID in text: ${match[1]}`);
+                return match[1];
+            }
+        }
+    }
+    
+    console.warn('⚠ Could not extract Student ID from PDF');
+    return null;
+}
+
+async function extractCoursesFromPdf() {
+    const file = classRoutinePdf.files[0];
+    if (!file) {
+        showError('Please select a PDF file.');
+        return;
+    }
+
+    extractionProgress.classList.remove('hidden');
+    extractionProgress.innerHTML = '<p class="text-sm text-blue-800">Processing PDF... Please wait.</p>';
+    extractCoursesBtn.disabled = true;
+
+    try {
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        
+        let allText = '';
+        let structuredText = []; // Keep text with positions for better parsing
+        
+        // Extract text from all pages
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            allText += pageText + '\n';
+            structuredText.push(...textContent.items.map(item => item.str));
+        }
+
+        console.log('=== PDF Text Extraction ===');
+        console.log('Total pages:', pdf.numPages);
+        console.log('Extracted text preview (first 500 chars):', allText.substring(0, 500));
+        console.log('All text items:', structuredText);
+
+        // Extract Student ID from PDF first
+        const extractedStudentId = extractStudentIdFromPdf(allText, structuredText);
+        
+        if (extractedStudentId) {
+            console.log('✓ Extracted Student ID:', extractedStudentId);
+            
+            // Auto-fill and confirm student ID
+            studentId.value = extractedStudentId;
+            confirmedStudentId = extractedStudentId;
+            studentIdConfirmed = true;
+            confirmStudentIdBtn.disabled = true;
+            confirmStudentIdBtn.textContent = 'ID Auto-Confirmed ✓';
+            
+            extractionProgress.innerHTML = '<p class="text-sm text-green-800">✓ Student ID detected: ' + extractedStudentId + '</p>';
+        } else {
+            console.warn('⚠ Could not extract Student ID from PDF');
+            extractionProgress.innerHTML = '<p class="text-sm text-orange-800">⚠ Student ID not found in PDF. Please enter it manually above.</p>';
+            
+            if (!studentIdConfirmed) {
+                showError('Could not find Student ID in PDF. Please enter your Student ID manually and confirm it, then try again.');
+                extractionProgress.classList.add('hidden');
+                extractCoursesBtn.disabled = false;
+                return;
+            }
+        }
+
+        // Parse the extracted text to find courses
+        const extractedCourses = parseCourseData(allText, structuredText);
+        
+        console.log('Extracted courses:', extractedCourses);
+        
+        if (extractedCourses.length === 0) {
+            extractionProgress.innerHTML = '<p class="text-sm text-red-800">❌ No courses found. Showing debug info...</p>';
+            console.error('Failed to extract courses. PDF text content:', allText);
+            showError('No courses found in the PDF. Please check the console for details or add courses manually. Make sure the PDF contains course codes like CSE251, MATH101, etc. and sections like Sec: A, Section: B, etc.');
+            extractionProgress.classList.add('hidden');
+            extractCoursesBtn.disabled = false;
+            return;
+        }
+        
+        // Show what was extracted
+        extractionProgress.innerHTML = `
+            <div class="text-sm">
+                <p class="font-semibold text-green-700">✓ Successfully extracted ${extractedCourses.length} courses from PDF:</p>
+                <p class="text-blue-700 mt-1">${extractedCourses.map(c => `${c.courseCode} (Sec: ${c.section})`).join(', ')}</p>
+                <p class="text-gray-600 mt-2">Now matching with exam schedule...</p>
+            </div>
+        `;
+
+        // Match extracted courses with exam data
+        const matchedCourses = matchCoursesWithExamData(extractedCourses);
+        
+        console.log('Matched courses:', matchedCourses);
+        
+        if (matchedCourses.length === 0) {
+            const extractedList = extractedCourses.map(c => `${c.courseCode} (${c.section})`).join(', ');
+            const availableList = examData.map(e => extractCourseCode(e.course) || e.course).slice(0, 10).join(', ');
+            
+            extractionProgress.innerHTML = `
+                <div class="text-sm space-y-2">
+                    <p class="font-semibold text-red-700">⚠️ Found ${extractedCourses.length} courses in PDF but none match the exam schedule.</p>
+                    <div class="bg-white p-3 rounded border border-orange-300">
+                        <p class="text-orange-900"><strong>From your PDF:</strong> <span class="text-blue-700">${extractedList}</span></p>
+                        <p class="text-orange-900 mt-2"><strong>In exam schedule (sample):</strong> <span class="text-green-700">${availableList}${examData.length > 10 ? '...' : ''}</span></p>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded border border-yellow-300">
+                        <p class="font-semibold text-yellow-900">🎯 Solutions:</p>
+                        <ol class="list-decimal ml-5 mt-2 text-yellow-900 space-y-1">
+                            <li><strong>Upload correct exam schedule:</strong> Make sure the Excel file contains courses from your department (CSE, ECO, PMG, etc.)</li>
+                            <li><strong>Use manual entry:</strong> Search and add courses one by one using the search box below</li>
+                            <li><strong>Check semester/department:</strong> Exam schedule should match your current semester</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
+            
+            console.warn('❌ NO MATCHES FOUND');
+            console.warn('Extracted from PDF:', extractedCourses);
+            console.warn('Available in exam schedule:', examData.slice(0, 20).map(e => ({ 
+                original: e.course, 
+                code: extractCourseCode(e.course) 
+            })));
+            
+            showError(`Found ${extractedCourses.length} courses in PDF (${extractedList}) but none match the exam schedule. Please verify you uploaded the correct exam routine Excel file for this semester.`);
+            
+            // Don't hide progress, keep it visible with info
+            extractCoursesBtn.disabled = false;
+            return;
+        }
+
+        // Add all matched courses to selected courses
+        selectedCourses = matchedCourses;
+        updateSelectedCoursesDisplay();
+        
+        extractionProgress.classList.add('hidden');
+        extractCoursesBtn.disabled = false;
+        
+        showSuccess(`Successfully extracted ${matchedCourses.length} courses from PDF! ${extractedCourses.length - matchedCourses.length > 0 ? `(${extractedCourses.length - matchedCourses.length} courses not in exam schedule)` : ''} You can now download your personalized exam schedule.`);
+        
+        // Scroll to selected courses section
+        setTimeout(() => {
+            selectedCoursesSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 500);
+
+    } catch (error) {
+        console.error('Error extracting courses from PDF:', error);
+        extractionProgress.innerHTML = `<p class="text-sm text-red-800">Error: ${error.message}</p>`;
+        showError(`Failed to extract courses from PDF: ${error.message}. Please check the console for details or add courses manually.`);
+        extractionProgress.classList.add('hidden');
+        extractCoursesBtn.disabled = false;
+    }
+}
+
+function parseCourseData(text, structuredText = []) {
+    const courses = [];
+    
+    console.log('=== Starting Course Parsing ===');
+    
+    // Multiple patterns for course codes to handle different formats
+    const coursePatterns = [
+        /\b([A-Z]{2,4}\s*\d{3,4})\b/g,           // CSE 251, CSE251
+        /\b([A-Z]{2,4}-\d{3,4})\b/g,             // CSE-251
+        /\b([A-Z]{2,4}_\d{3,4})\b/g,             // CSE_251
+        /Course[:\s]*([A-Z]{2,4}\s*\d{3,4})/gi,  // Course: CSE251
+    ];
+    
+    // Multiple patterns for sections
+    const sectionPatterns = [
+        /\b(?:Sec|Section|Sect)[\s:.-]*([A-Z0-9]+)\b/gi,     // Sec: A, Section A
+        /\bSection[\s:]*([A-Z0-9]+)\b/gi,                     // Section: A
+        /\b([A-Z])\s*$/,                                       // Single letter at end of line
+        /\bGrp[\s:.-]*([A-Z0-9]+)\b/gi,                       // Grp: A
+    ];
+    
+    // Try to extract course-section pairs from structured text (closer proximity)
+    if (structuredText && structuredText.length > 0) {
+        console.log('Trying structured text parsing...');
+        for (let i = 0; i < structuredText.length; i++) {
+            const item = structuredText[i];
+            
+            // Check if this item contains a course code
+            for (const pattern of coursePatterns) {
+                pattern.lastIndex = 0; // Reset regex
+                const match = pattern.exec(item);
+                if (match) {
+                    const courseCode = match[1].replace(/[\s-_]/g, '').toUpperCase();
+                    console.log(`Found course code: ${courseCode} at index ${i}`);
+                    
+                    // Look for section in nearby items (within next 10 items)
+                    let foundSection = null;
+                    for (let j = i; j < Math.min(i + 10, structuredText.length); j++) {
+                        const nearbyItem = structuredText[j];
+                        
+                        for (const secPattern of sectionPatterns) {
+                            secPattern.lastIndex = 0; // Reset regex
+                            const secMatch = secPattern.exec(nearbyItem);
+                            if (secMatch) {
+                                foundSection = secMatch[1].toUpperCase();
+                                console.log(`Found section: ${foundSection} for ${courseCode}`);
+                                break;
+                            }
+                        }
+                        if (foundSection) break;
+                    }
+                    
+                    if (foundSection) {
+                        const exists = courses.some(c => 
+                            c.courseCode === courseCode && c.section === foundSection
+                        );
+                        if (!exists) {
+                            courses.push({ courseCode, section: foundSection });
+                            console.log(`Added course: ${courseCode} - ${foundSection}`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback: Parse line by line
+    if (courses.length === 0) {
+        console.log('Structured parsing found nothing, trying line-by-line parsing...');
+        const lines = text.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            
+            // Try to find course codes
+            for (const pattern of coursePatterns) {
+                pattern.lastIndex = 0; // Reset regex
+                let match;
+                while ((match = pattern.exec(line)) !== null) {
+                    const courseCode = match[1].replace(/[\s-_]/g, '').toUpperCase();
+                    console.log(`Line ${i}: Found course code: ${courseCode} in "${line}"`);
+                    
+                    // Look for section in the same line
+                    let foundSection = null;
+                    for (const secPattern of sectionPatterns) {
+                        secPattern.lastIndex = 0; // Reset regex
+                        const secMatch = secPattern.exec(line);
+                        if (secMatch) {
+                            foundSection = secMatch[1].toUpperCase();
+                            console.log(`Found section in same line: ${foundSection}`);
+                            break;
+                        }
+                    }
+                    
+                    // If not found in same line, check next few lines
+                    if (!foundSection) {
+                        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                            const nextLine = lines[j].trim();
+                            if (!nextLine) continue;
+                            
+                            for (const secPattern of sectionPatterns) {
+                                secPattern.lastIndex = 0; // Reset regex
+                                const secMatch = secPattern.exec(nextLine);
+                                if (secMatch) {
+                                    foundSection = secMatch[1].toUpperCase();
+                                    console.log(`Found section in line ${j}: ${foundSection} in "${nextLine}"`);
+                                    break;
+                                }
+                            }
+                            if (foundSection) break;
+                        }
+                    }
+                    
+                    if (foundSection) {
+                        const exists = courses.some(c => 
+                            c.courseCode === courseCode && c.section === foundSection
+                        );
+                        if (!exists) {
+                            courses.push({ courseCode, section: foundSection });
+                            console.log(`Added course: ${courseCode} - ${foundSection}`);
+                        }
+                    } else {
+                        console.warn(`Course ${courseCode} found but no section detected`);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Final attempt: Look for table-like structures
+    if (courses.length === 0) {
+        console.log('Trying table-like structure parsing...');
+        // Sometimes PDFs have course and section in adjacent cells
+        const words = text.split(/\s+/);
+        for (let i = 0; i < words.length - 2; i++) {
+            // Check if current word is a course code
+            for (const pattern of coursePatterns) {
+                pattern.lastIndex = 0;
+                if (pattern.test(words[i])) {
+                    const courseCode = words[i].replace(/[\s-_]/g, '').toUpperCase();
+                    // Check next few words for section indicators
+                    for (let j = i + 1; j < Math.min(i + 5, words.length); j++) {
+                        for (const secPattern of sectionPatterns) {
+                            secPattern.lastIndex = 0;
+                            const secMatch = secPattern.exec(words[j]);
+                            if (secMatch) {
+                                const section = secMatch[1].toUpperCase();
+                                const exists = courses.some(c => 
+                                    c.courseCode === courseCode && c.section === section
+                                );
+                                if (!exists) {
+                                    courses.push({ courseCode, section });
+                                    console.log(`Table parsing - Added: ${courseCode} - ${section}`);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    console.log('=== Final Extracted Courses ===');
+    console.log(courses);
+    
+    return courses;
+}
+
+function matchCoursesWithExamData(extractedCourses) {
+    const matchedCourses = [];
+    
+    console.log('=== Starting Course Matching ===');
+    console.log('Courses to match:', extractedCourses);
+    console.log('Available exam data:', examData.map(e => ({ course: e.course, extracted: extractCourseCode(e.course) })));
+    
+    for (const extractedCourse of extractedCourses) {
+        console.log(`Trying to match: ${extractedCourse.courseCode} (Section: ${extractedCourse.section})`);
+        
+        // Try to find matching course in exam data
+        let matchingExam = examData.find(exam => {
+            const examCourseCode = extractCourseCode(exam.course);
+            const extractedCode = extractedCourse.courseCode;
+            
+            // Normalize both codes by removing spaces and comparing
+            const normalizedExamCode = examCourseCode.replace(/\s+/g, '');
+            const normalizedExtractedCode = extractedCode.replace(/\s+/g, '');
+            
+            const match = normalizedExamCode === normalizedExtractedCode;
+            if (match) {
+                console.log(`✓ Exact match: ${extractedCode} matches ${examCourseCode} in ${exam.course}`);
+            }
+            return match;
+        });
+        
+        // If exact match not found, try variations (with/without leading zeros)
+        if (!matchingExam) {
+            matchingExam = examData.find(exam => {
+                const examCourseCode = extractCourseCode(exam.course);
+                
+                // Try matching with variations:
+                // CSE251 vs CSE0251, CSE3421 vs CSE321, PMG4101 vs PMG 4101, etc.
+                const extracted = extractedCourse.courseCode.replace(/\s+/g, '');
+                const examCode = examCourseCode.replace(/\s+/g, '');
+                
+                // Extract prefix and number parts
+                const extractedMatch = extracted.match(/^([A-Z]+)(\d+)$/);
+                const examMatch = examCode.match(/^([A-Z]+)(\d+)$/);
+                
+                if (extractedMatch && examMatch) {
+                    const [, extractedPrefix, extractedNum] = extractedMatch;
+                    const [, examPrefix, examNum] = examMatch;
+                    
+                    // Same prefix, check if numbers match (ignoring leading zeros)
+                    if (extractedPrefix === examPrefix) {
+                        const match = parseInt(extractedNum) === parseInt(examNum);
+                        if (match) {
+                            console.log(`✓ Variation match: ${extracted} matches ${examCode} in ${exam.course}`);
+                        }
+                        return match;
+                    }
+                }
+                
+                return false;
+            });
+        }
+        
+        // If still no match, try partial matching
+        if (!matchingExam) {
+            console.log(`No exact match for ${extractedCourse.courseCode}, trying partial match...`);
+            matchingExam = examData.find(exam => {
+                const examCourseLower = exam.course.toLowerCase().replace(/\s+/g, '');
+                const extractedLower = extractedCourse.courseCode.toLowerCase().replace(/\s+/g, '');
+                
+                // Check if course code appears anywhere in the exam course name
+                const match = examCourseLower.includes(extractedLower);
+                
+                if (match) {
+                    console.log(`✓ Partial match: ${extractedCourse.courseCode} with ${exam.course}`);
+                }
+                return match;
+            });
+        }
+        
+        if (matchingExam) {
+            // Check if already selected
+            const alreadySelected = selectedCourses.some(selected =>
+                selected.course.toLowerCase() === matchingExam.course.toLowerCase() &&
+                selected.section === extractedCourse.section
+            );
+            
+            if (!alreadySelected) {
+                const courseWithSection = {
+                    ...matchingExam,
+                    section: extractedCourse.section,
+                    assignedRoom: findStudentRoom(matchingExam.course, confirmedStudentId, extractedCourse.section)
+                };
+                
+                matchedCourses.push(courseWithSection);
+                console.log(`✓ Added to matched courses: ${matchingExam.course} (${extractedCourse.section})`);
+            } else {
+                console.log(`⊘ Already selected: ${matchingExam.course} (${extractedCourse.section})`);
+            }
+        } else {
+            console.warn(`✗ No match found for: ${extractedCourse.courseCode}`);
+        }
+    }
+    
+    console.log('=== Matching Complete ===');
+    console.log('Total matched:', matchedCourses.length);
+    
+    return matchedCourses;
 }
 
 function handleCourseSectionInput() {
@@ -560,9 +1059,10 @@ function handleCourseSearch() {
 }
 
 function extractCourseCode(courseName) {
-    // Extract course code from course name (e.g., "CSE251" from "Computer Science CSE251")
-    const codeMatch = courseName.match(/[A-Z]{2,4}\d{2,4}/);
-    return codeMatch ? codeMatch[0] : '';
+    // Extract course code from course name (e.g., "CSE251" or "CSE3421" from "Computer Science CSE251")
+    // Support both 3-digit and 4-digit course codes
+    const codeMatch = courseName.match(/\b([A-Z]{2,4}\d{3,4})\b/i);
+    return codeMatch ? codeMatch[1].toUpperCase() : '';
 }
 
 function extractCourseCodeAndTitle(courseString) {
@@ -1121,12 +1621,15 @@ function clearData() {
     courseSection.disabled = true;
     courseSection.innerHTML = '<option value="">Select a course first</option>';
     studentId.value = '';
+    classRoutinePdf.value = '';
     searchSuggestions.classList.add('hidden');
+    extractionProgress.classList.add('hidden');
     
     uploadBtn.disabled = true;
     addCourseBtn.disabled = true;
     confirmStudentIdBtn.disabled = true;
     confirmStudentIdBtn.textContent = 'Confirm Student ID';
+    extractCoursesBtn.disabled = true;
     
     toggleRoutineBtn.textContent = 'Show Full Routine';
     toggleRoutineBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
